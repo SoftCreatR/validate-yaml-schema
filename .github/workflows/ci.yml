@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Quality checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check
+      - run: npm run build
+      - name: Verify committed action bundle
+        run: |
+          git diff --exit-code -- lib
+          test -z "$(git status --porcelain --untracked-files=all -- lib)"
+
+  action:
+    name: Action / ${{ matrix.os }}
+    needs: quality
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - id: validate
+        uses: ./
+        with:
+          failOnNoFiles: true
+      - name: Verify outputs
+        env:
+          VALID_FILES: ${{ steps.validate.outputs.validFiles }}
+        run: >-
+          node --input-type=module -e "const files = new Set(process.env.VALID_FILES.split(','));
+          for (const expected of ['action.yml', '.github/workflows/ci.yml']) {
+            if (!files.has(expected)) throw new Error(expected + ' was not validated');
+          }"

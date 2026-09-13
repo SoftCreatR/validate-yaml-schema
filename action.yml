@@ -1,21 +1,28 @@
-name: 'Y(A)ML Schema Validator'
-description: 'Validate YAML files in a repo according to settings'
+name: 'YAML Schema Validator'
+description: 'Validate YAML files against JSON Schemas'
 inputs:
   settingsFile:
-    description: 'Location of schema configuration file'
+    description:
+      'Schema mapping file; auto-detects .yaml-schema.json or .vscode/settings.json when omitted'
     required: false
-    default: '.vscode/settings.json'
+    default: ''
   yamlSchemasJson:
-    description: 'The yaml.schemas config as inline JSON'
+    description:
+      'Schema mappings as inline JSON or JSONC; overrides mappings loaded from settingsFile'
     required: false
+    default: ''
+  failOnNoFiles:
+    description: 'Fail when none of the configured patterns match a file'
+    required: false
+    default: 'false'
 outputs:
   validFiles:
-    description: 'Comma separated list of files that passed the schema validation'
+    description: 'Comma-separated list of files that passed schema validation'
   invalidFiles:
-    description: 'Comma separated list of files that failed the schema validation'
+    description: 'Comma-separated list of files that failed schema validation'
 runs:
-  using: 'node12'
+  using: 'node24'
   main: 'lib/index.js'
 branding:
   icon: 'check'
-  color: orange
+  color: 'orange'

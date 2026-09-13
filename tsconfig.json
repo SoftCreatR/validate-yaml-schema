@@ -1,17 +1,18 @@
 {
-    "compilerOptions": {
-      "target": "ES6",
-      "module": "commonjs",
-      "moduleResolution": "node",
-      "sourceMap": true,
-      "lib" : [ "es2016" ],
-      "emitDecoratorMetadata": true,
-      "experimentalDecorators": true,
-      "removeComments": false,
-      "noImplicitAny": false,
-    },
-    "exclude": [
-      "node_modules",
-      ".npm"
-    ]
-  }
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "lib": ["ES2024"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": true,
+    "noUncheckedIndexedAccess": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2024",
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

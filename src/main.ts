@@ -1,55 +1,60 @@
+import path from 'node:path';
 import * as core from '@actions/core';
-import { validateYaml } from './yaml-validator';
-import { getJson } from './file-reader';
-import * as path from 'path';
-import * as fs from 'fs';
+import { loadSchemaConfig } from './schema-config.js';
+import { validateWorkspace } from './validator.js';
 
-async function run() {
+export async function run(): Promise<void> {
   try {
+    const workspaceRoot = path.resolve(process.env.GITHUB_WORKSPACE ?? process.cwd());
+    const settingsFile = core.getInput('settingsFile');
+    const yamlSchemasJson = core.getInput('yamlSchemasJson', { trimWhitespace: false });
+    const failOnNoFiles = core.getBooleanInput('failOnNoFiles');
+    const config = await loadSchemaConfig(workspaceRoot, settingsFile, yamlSchemasJson);
 
-    const workspaceRoot = <string>process.env['GITHUB_WORKSPACE'];
-
-    const settingsFile = core.getInput('settingsfile');
-    const yamlSchemasJson = core.getInput('yamlSchemasJson');
-
-    // Settings checking
-
-    let inlineYamlSchemas;
-    if (yamlSchemasJson)
-    {
-      inlineYamlSchemas =  JSON.parse(yamlSchemasJson)
+    if (config.source) {
+      core.info(`Using schema mappings from ${config.source}.`);
     }
 
-    let settingsYamlSchemas;
-    if (fs.existsSync(settingsFile)){
-      const settings  = await getJson(path.join(workspaceRoot, settingsFile));
-      settingsYamlSchemas = settings ? settings['yaml.schemas'] : null;
+    const results = await validateWorkspace(workspaceRoot, config.schemas);
+    const validFiles = results.filter((result) => result.valid).map((result) => result.filePath);
+    const invalidFiles = results.filter((result) => !result.valid).map((result) => result.filePath);
+
+    core.setOutput('validFiles', validFiles.join(','));
+    core.setOutput('invalidFiles', invalidFiles.join(','));
+
+    for (const result of results) {
+      if (result.valid) {
+        core.info(`Validated ${result.filePath}`);
+        continue;
+      }
+
+      for (const diagnostic of result.diagnostics) {
+        core.error(diagnostic.message, {
+          endColumn: diagnostic.range.end.character + 1,
+          endLine: diagnostic.range.end.line + 1,
+          file: result.filePath,
+          startColumn: diagnostic.range.start.character + 1,
+          startLine: diagnostic.range.start.line + 1,
+          title: 'YAML schema validation',
+        });
+      }
     }
-    const schemas = {...settingsYamlSchemas, ...inlineYamlSchemas };
 
-
-    const validationResults = await validateYaml(workspaceRoot, schemas);
-
-    const validResults = validationResults.filter(res => res.valid).map(res => res.filePath);
-    const invalidResults = validationResults.filter(res => !res.valid).map(res => res.filePath);
-
-    const validFiles = validResults.length > 0 ? validResults.join(',') : '';
-    const invalidFiles = invalidResults.length > 0 ? invalidResults.join(',') : '';
-
-    core.setOutput('validFiles', validFiles);
-    core.setOutput('invalidFiles', invalidFiles);
-
-    if (invalidResults.length > 0) {
-        core.warning('Invalid Files: ' + invalidFiles);
-        core.setFailed('Schema validation failed on one or more YAML files.');
+    if (results.length === 0) {
+      const message = 'No files matched the configured YAML schema patterns.';
+      if (failOnNoFiles) {
+        core.setFailed(message);
+      } else {
+        core.warning(message);
+      }
+    } else if (invalidFiles.length > 0) {
+      core.setFailed(`Schema validation failed for ${invalidFiles.length} file(s).`);
     } else {
-        core.info(`✅ YAML Schema validation completed successfully`);
+      core.info(`Validated ${validFiles.length} YAML file(s) successfully.`);
     }
-
   } catch (error) {
-    core.setFailed(error.message);
+    core.setFailed(error instanceof Error ? error.message : String(error));
   }
-
 }
 
-run();
+void run();

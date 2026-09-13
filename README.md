@@ -1,58 +1,101 @@
 # Validate YAML Schema
 
-This action validates YAML files using the `yaml.schemas` settings for the [VS Code YAML Extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml)
+Validate YAML files against JSON Schemas in a GitHub Actions workflow. Validation is powered by the
+same YAML language service used by Red Hat's VS Code YAML extension, but this action does not
+require VS Code or a `.vscode` directory.
 
-All you need is a **.vscode/settings.json** document at the root of the repository that contains the `yaml.schemas` setting
+## Usage
+
+Add a `.yaml-schema.json` file to your repository. Its keys are remote schema URLs or local schema
+paths, and its values are file patterns:
+
+```json
+{
+  "https://json.schemastore.org/github-workflow.json": [".github/workflows/*.yml"],
+  "./schemas/config.schema.json": ["config/**/*.yaml"]
+}
+```
+
+Then run the action after checking out the repository:
+
+```yaml
+steps:
+  - uses: actions/checkout@v7
+  - uses: SoftCreatR/validate-yaml-schema@v3
+```
+
+Comments and trailing commas are accepted in configuration files. Remote HTTP(S) schemas, absolute
+paths, `file:` URLs, and paths relative to the repository root are supported.
 
 ## Inputs
 
-### `settingsFile` (optional)
+### `settingsFile`
 
-Location of the schema configuration file.
+Path to a schema mapping file. When omitted, the action looks for `.yaml-schema.json` first and then
+`.vscode/settings.json`.
 
-The default location is **.vscode/settings.json**, you can change it do a different location but it but still be a json document containing the `yaml.schemas` config.
-See the [VS Code YAML Extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) for how to structure the config.
+Both the direct format shown above and the VS Code-compatible `yaml.schemas` format are accepted:
 
-
-### `yamlSchemasJson` (optional)
-
-The yaml.schemas config as inline JSON
-
-Instead of adding the `yaml.schemas` config to a file, you can instead supply it as inline JSON, e.g.:
-
-```yaml
-      - uses: SoftCreatR/validate-yaml-schema@v2.0.0
-        with:
-          yamlSchemasJson: |
-            {
-                "http://json.schemastore.org/composer": ["/*"],
-                "file:///home/johnd/some-schema.json": ["some.yaml"],
-                "../relative/path/schema.json": ["/config*.yaml"],
-                "/Users/johnd/some-schema.json": ["some.yaml"],
-            }
+```json
+{
+  "yaml.schemas": {
+    "./schemas/config.schema.json": ["config/**/*.yaml"]
+  }
+}
 ```
 
+### `yamlSchemasJson`
+
+Inline schema mappings. These are merged with mappings from the configuration file and take
+precedence when the same schema URI occurs in both:
+
+```yaml
+- uses: SoftCreatR/validate-yaml-schema@v3
+  with:
+    yamlSchemasJson: |
+      {
+        "https://json.schemastore.org/composer.json": ["composer.json"]
+      }
+```
+
+### `failOnNoFiles`
+
+Fail if no configured pattern matches a file. The default is `false` for compatibility with earlier
+versions; otherwise the action emits a warning.
 
 ## Outputs
 
-### `validFiles`
+- `validFiles`: comma-separated list of files that passed validation
+- `invalidFiles`: comma-separated list of files that failed validation
 
-A comma separated list of files that passed the schema validation.
+Validation errors are emitted as GitHub annotations with file, line, and column information.
 
-### `invalidFiles`
+## Migrating from v2
 
-A comma separated list of files that failed the schema validation.
+Version 3 uses the Node 24 action runtime. Existing `settingsFile`, `yamlSchemasJson`,
+`.vscode/settings.json`, `validFiles`, and `invalidFiles` integrations remain supported. You can
+keep your current VS Code settings or move the `yaml.schemas` mapping into `.yaml-schema.json` and
+remove the editor-specific wrapper.
 
- > Schema validation fails if any results are returned from the YAML Language Server
+## Development
 
-## Example usage
- You'll need to precede the action with `actions/checkout@v3` as this action will read files from the [GITHUB_WORKSPACE directory](https://help.github.com/en/actions/configuring-and-managing-workflows/using-environment-variables)
+Node.js 24 and npm are required.
 
-    steps:
-      - uses: actions/checkout@v3
-      - uses: SoftCreatR/validate-yaml-schema@v2.0.0
+```shell
+npm ci
+npm run check
+npm run build
+```
 
-## Thanks
-This action has been made by 're-mixing' logic from these repos:
- - https://github.com/OrRosenblatt/validate-json-action
- - https://github.com/redhat-developer/yaml-language-server
+The generated files in `lib/` are committed because GitHub Actions runs the bundle directly. Rebuild
+them after changing source or dependencies.
+
+## Acknowledgements
+
+This project began by adapting logic from
+[OrRosenblatt/validate-json-action](https://github.com/OrRosenblatt/validate-json-action) and
+[redhat-developer/yaml-language-server](https://github.com/redhat-developer/yaml-language-server).
+
+## License
+
+[CC0 1.0 Universal](LICENSE.md)
